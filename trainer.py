@@ -6,7 +6,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Trainer():
-    def __init__(self, model, data_loader, tb_writer, learning_rate=0.0001, wkl=1.0):
+    def __init__(self, model, data_loader, tb_writer, learning_rate=0.0001, wkl=1.0, clip_val=1.0):
         self.model = model
         self.data_loader = data_loader
         self.tb_writer = tb_writer
@@ -15,6 +15,7 @@ class Trainer():
         self.dec_opt = optim.Adam(
             self.model.decoder.parameters(), lr=learning_rate)
         self.wkl = wkl
+        self.clip_val = clip_val
         self.epoch = 0
         # TODO plot Decoder Graph
         inputs = (self.data_loader.dataset[0])[0].unsqueeze(1)
@@ -24,8 +25,8 @@ class Trainer():
 
     def train(self, epoch):
         for e in range(epoch):
-            self.epoch = e
-            self.tb_writer.add_scalar('progress/epoch', e, e)
+            self.epoch += 1
+            self.tb_writer.add_scalar('progress/epoch', self.epoch, self.epoch)
 
             x = None
             for x, _ in self.data_loader:
@@ -37,6 +38,7 @@ class Trainer():
                 loss = self.loss_on_batch(x)
                 self.tb_writer.add_scalar("loss/train", loss, self.epoch)
 
+            # TODO save model
             self.tb_writer.flush()
 
     def train_on_batch(self, x):
@@ -86,13 +88,13 @@ def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, Ns):
                            torch.zeros(Nmax - Ns[i], device=device, dtype=torch.float)]).unsqueeze(1)
         zero_out = torch.cat([zero_out, zeros], dim=1)
 
-    return -torch.sum(zero_out * torch.log(pdf_val + 1e-5)) \
+    return -torch.sum(zero_out * torch.log(pdf_val + 1e-4)) \
         / float(Nmax * batch_size)
 
 
 def lp(p1, p2, p3, q):
     p = torch.cat([p1.unsqueeze(2), p2.unsqueeze(2), p3.unsqueeze(2)], dim=2)
-    return -torch.sum(p*torch.log(q + 1e-5)) \
+    return -torch.sum(p*torch.log(q + 1e-4)) \
         / (q.shape[0] * q.shape[1])
 
 
@@ -109,11 +111,11 @@ def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
     norm2 = y - mu_y
     sxsy = sigma_x * sigma_y
 
-    z = (norm1/sigma_x)**2 + (norm2/sigma_y)**2 -\
-        (2. * rho_xy * norm1 * norm2 / sxsy)
+    z = (norm1/(sigma_x + 1e-4))**2 + (norm2/(sigma_y + 1e-4))**2 -\
+        (2. * rho_xy * norm1 * norm2 / (sxsy + 1e-4)) + 1e-4
 
     neg_rho = 1 - rho_xy**2
-    result = torch.exp(-z/(2.*neg_rho))
-    denom = 2. * np.pi * sxsy * neg_rho**2
+    result = torch.exp(-z/(2.*neg_rho + 1e-4))
+    denom = 2. * np.pi * sxsy * neg_rho**2 + 1e-4
     result = result / denom
     return result

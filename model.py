@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -9,6 +10,47 @@ class SketchRNN():
     def __init__(self, enc_hidden_size=256, dec_hidden_size=256, Nz=128, M=20, dropout=0.1):
         self.encoder = Encoder(enc_hidden_size, Nz, dropout)
         self.decoder = Decoder(dec_hidden_size, Nz, M, dropout)
+
+    # TODO batch reconstruction
+    def reconstruct(self, S):
+        with torch.no_grad():
+            Nmax = S.shape[0]
+            batch_size = S.shape[1]
+            s_i = torch.stack(
+                [torch.Tensor([0, 0, 1, 0, 0], device=device)] * batch_size, dim=0).unsqueeze(0)
+            output = s_i  # dummy
+            z, _, _ = self.encoder(S)
+            for i in range(Nmax):
+                (pi, mu_x, mu_y, sigma_x, sigma_y,
+                 rho_xy, q), _ = self.decoder(s_i, z)
+                s_i = self.sample_next(
+                    pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q)
+                output = torch.cat([output, s_i], dim=0)
+                if output[-1, 0, 4] == 1:
+                    break
+
+            output = output[1:, :, :]  # remove dummy
+            return output
+
+    def sample_next(self, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q):
+        pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q = pi[0, 0, :], mu_x[0, 0, :], mu_y[0,
+                                                                                       0, :], sigma_x[0, 0, :], sigma_y[0, 0, :], rho_xy[0, 0, :], q[0, 0, :]
+        M = pi.shape[0]
+        # offset
+        idx = np.random.choice(M, p=pi.numpy())
+        mean = [mu_x[idx], mu_y[idx]]
+        cov = [[sigma_x[idx] * sigma_x[idx], rho_xy[idx] * sigma_x[idx]*sigma_y[idx]],
+               [rho_xy[idx] * sigma_x[idx]*sigma_y[idx], sigma_y[idx] * sigma_y[idx]]]
+        xy = np.random.multivariate_normal(mean, cov, 1)
+        xy = torch.from_numpy(xy).float()
+
+        # pen
+        p = torch.Tensor([0, 0, 0], device=device)
+        idx = np.random.choice(3, p=q.numpy())
+        p[idx] = 1.0
+        p = p.unsqueeze(0)
+
+        return torch.cat([xy, p], dim=1).unsqueeze(0)
 
 
 class Encoder(nn.Module):
@@ -59,12 +101,12 @@ class Decoder(nn.Module):
         o, (h, c) = self.decoder_rnn(dec_input, h0c0)
         y = self.fc_y(o)
 
-        pi = F.softmax(y[:, :, 0:self.M], 1)
+        pi = F.softmax(y[:, :, 0:self.M], dim=2)
         mu_x = y[:, :, self.M:2*self.M]
         mu_y = y[:, :, 2*self.M:3*self.M]
         sigma_x = torch.exp(y[:, :, 3*self.M:4*self.M])
         sigma_y = torch.exp(y[:, :, 4*self.M:5*self.M])
         rho_xy = torch.tanh(y[:, :, 5*self.M:6*self.M])
-        q = F.softmax(y[:, :, 6*self.M:6*self.M+3], 1)
+        q = F.softmax(y[:, :, 6*self.M:6*self.M+3], dim=2)
 
         return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (h, c)
