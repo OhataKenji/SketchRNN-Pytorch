@@ -46,7 +46,10 @@ class Trainer():
         loss = self.loss_on_batch(x)
         loss.backward()
 
-        # grad clip here
+        torch.nn.utils.clip_grad_value_(
+            self.model.encoder.parameters(), self.clip_val)
+        torch.nn.utils.clip_grad_value_(
+            self.model.decoder.parameters(), self.clip_val)
 
         self.enc_opt.step()
         self.dec_opt.step()
