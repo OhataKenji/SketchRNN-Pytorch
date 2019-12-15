@@ -6,20 +6,38 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Trainer():
-    def __init__(self, model, data_loader, learning_rate=0.0001, wkl=1.0):
+    def __init__(self, model, data_loader, tb_writer, learning_rate=0.0001, wkl=1.0):
         self.model = model
         self.data_loader = data_loader
+        self.tb_writer = tb_writer
         self.enc_opt = optim.Adam(
             self.model.encoder.parameters(), lr=learning_rate)
         self.dec_opt = optim.Adam(
             self.model.decoder.parameters(), lr=learning_rate)
         self.wkl = wkl
+        self.epoch = 0
+        # TODO plot Decoder Graph
+        inputs = (self.data_loader.dataset[0])[0].unsqueeze(1)
+        self.tb_writer.add_graph(self.model.encoder, inputs)
+        #z, _, _ = self.model.encoder(inputs)
+        #self.tb_writer.add_graph(self.model.decoder, (inputs, z))
 
     def train(self, epoch):
         for e in range(epoch):
+            self.epoch = e
+            self.tb_writer.add_scalar('progress/epoch', e, e)
+
+            x = None
             for x, _ in self.data_loader:
                 x = x.permute(1, 0, 2)
                 self.train_on_batch(x)
+
+            # TODO fix proper batch to calculate loss
+            with torch.no_grad():
+                loss = self.loss_on_batch(x)
+                self.tb_writer.add_scalar("loss/train", loss, self.epoch)
+
+            self.tb_writer.flush()
 
     def train_on_batch(self, x):
         self.model.encoder.zero_grad()
@@ -66,7 +84,7 @@ def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, Ns):
         zero_out = torch.cat([zero_out, zeros], dim=1)
 
     return -torch.sum(zero_out * torch.log(pdf_val + 1e-5)) \
-        / float(Nmax)
+        / float(Nmax * batch_size)
 
 
 def lp(p1, p2, p3, q):
