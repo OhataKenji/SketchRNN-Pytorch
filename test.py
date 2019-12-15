@@ -16,7 +16,6 @@ tb_writer = SummaryWriter(log_dir)
 model = SketchRNN(enc_hidden_size=64, dec_hidden_size=64,
                   Nz=64, M=5, dropout=0.1)
 trainer = Trainer(model, dataloader, tb_writer, learning_rate=0.0001)
-inputs = (dataloader.dataset[0])[0].unsqueeze(1)
-print(model.reconstruct(inputs))
-# trainer.train(epoch=300)
+
+trainer.train(epoch=300)
 tb_writer.close()

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.optim as optim
-from utils import ns
+from utils import ns, strokes2rgb
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -39,6 +39,12 @@ class Trainer():
                 self.tb_writer.add_scalar("loss/train", loss, self.epoch)
 
             # TODO save model
+            x = x[:, 0, :].unsqueeze(1)
+            self.tb_writer.add_image(
+                "reconstruction/original", strokes2rgb(x), self.epoch)
+            self.tb_writer.add_image(
+                "reconstruction/prediction", strokes2rgb(self.model.reconstruct(x)), self.epoch)
+
             self.tb_writer.flush()
 
     def train_on_batch(self, x):
