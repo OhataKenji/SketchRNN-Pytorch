@@ -6,11 +6,11 @@ from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 
 data_path = Path.home() / 'MyDatasets/Sketches/apple/test.npy'
-dataset = V5Dataset(str(data_path), To5vStrokes(max_len=80))
+dataset = V5Dataset(str(data_path), To5vStrokes(max_len=80), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=10, shuffle=True)
 
-log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/1'
+log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/2'
 tb_writer = SummaryWriter(log_dir)
 
 model = SketchRNN(enc_hidden_size=64, dec_hidden_size=64,

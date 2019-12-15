@@ -36,14 +36,26 @@ class Trainer():
             # TODO fix proper batch to calculate loss
             with torch.no_grad():
                 loss = self.loss_on_batch(x)
-                self.tb_writer.add_scalar("loss/train", loss, self.epoch)
+                self.tb_writer.add_scalar("loss/train", loss[0], self.epoch)
+                self.tb_writer.add_scalar("loss/train/Ls", loss[1], self.epoch)
+                self.tb_writer.add_scalar("loss/train/Lp", loss[2], self.epoch)
+                self.tb_writer.add_scalar("loss/train/Lr", loss[3], self.epoch)
+                self.tb_writer.add_scalar(
+                    "loss/train/Lkl", loss[4], self.epoch)
 
             # TODO save model
             x = x[:, 0, :].unsqueeze(1)
+            origial = x
+            self.tb_writer.add_text(
+                'reconstruction/original', str(origial), self.epoch)
             self.tb_writer.add_image(
-                "reconstruction/original", strokes2rgb(x), self.epoch)
+                "reconstruction/original", strokes2rgb(origial), self.epoch)
+
+            recon = self.model.reconstruct(x)
+            self.tb_writer.add_text(
+                'reconstruction/prediction', str(recon), self.epoch)
             self.tb_writer.add_image(
-                "reconstruction/prediction", strokes2rgb(self.model.reconstruct(x)), self.epoch)
+                "reconstruction/prediction", strokes2rgb(recon), self.epoch)
 
             self.tb_writer.flush()
 
@@ -51,7 +63,7 @@ class Trainer():
         self.model.encoder.zero_grad()
         self.model.decoder.zero_grad()
 
-        loss = self.loss_on_batch(x)
+        loss, _, _, _, _ = self.loss_on_batch(x)
         loss.backward()
 
         torch.nn.utils.clip_grad_value_(
@@ -76,7 +88,8 @@ class Trainer():
         Lr = Ls + Lp
 
         Lkl = lkl(mu, sigma_hat)
-        return Lr + self.wkl * Lkl
+        loss = Lr + self.wkl * Lkl
+        return loss, Ls, Lp, Lr, Lkl
 
 
 def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, Ns):
