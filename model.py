@@ -7,7 +7,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class SketchRNN():
-    def __init__(self, enc_hidden_size=256, dec_hidden_size=256, Nz=128, M=20, dropout=0.1):
+    def __init__(self, enc_hidden_size=512, dec_hidden_size=2048, Nz=128, M=20, dropout=0.1):
         self.encoder = Encoder(enc_hidden_size, Nz, dropout).to(device)
         self.decoder = Decoder(dec_hidden_size, Nz, M, dropout).to(device)
 
@@ -56,7 +56,7 @@ class SketchRNN():
 
 
 class Encoder(nn.Module):
-    def __init__(self, enc_hidden_size=256, Nz=128, dropout=0.1):
+    def __init__(self, enc_hidden_size=512, Nz=128, dropout=0.1):
         super().__init__()
         self.encoder_rnn = nn.LSTM(
             5, enc_hidden_size, dropout=dropout, bidirectional=True)
@@ -78,7 +78,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, dec_hidden_size=256, Nz=128, M=20, dropout=0.1):
+    def __init__(self, dec_hidden_size=2048, Nz=128, M=20, dropout=0.1):
         super().__init__()
         self.M = M
         self.dec_hidden_size = dec_hidden_size
