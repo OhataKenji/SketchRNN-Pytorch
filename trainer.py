@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 from utils import ns, strokes2rgb
+from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -29,7 +30,7 @@ class Trainer():
             self.tb_writer.add_scalar('progress/epoch', self.epoch, self.epoch)
 
             x = None
-            for x, _ in self.data_loader:
+            for x, _ in tqdm(self.data_loader, ascii=True):
                 x = x.permute(1, 0, 2)
                 self.train_on_batch(x)
 
