@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 data_path = Path.home() / 'MyDatasets/Sketches/apple/train.npy'
 dataset = V5Dataset(str(data_path), To5vStrokes(), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
-    dataset, shuffle=True)
+    dataset, batch_size=100,shuffle=True)
 
 log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/3'
 tb_writer = SummaryWriter(log_dir)
