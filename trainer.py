@@ -131,10 +131,10 @@ def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
     sxsy = sigma_x * sigma_y
 
     z = (norm1/(sigma_x + 1e-4))**2 + (norm2/(sigma_y + 1e-4))**2 -\
-        (2. * rho_xy * norm1 * norm2 / (sxsy + 1e-4)) + 1e-4
+        ((2. * rho_xy * norm1 * norm2 / (sxsy + 1e-4)) + 1e-4)
 
     neg_rho = 1 - rho_xy**2
     result = torch.exp(-z/(2.*neg_rho + 1e-4))
-    denom = 2. * np.pi * sxsy * neg_rho**2 + 1e-4
+    denom = 2. * np.pi * sxsy * torch.sqrt(neg_rho) + 1e-4
     result = result / denom
     return result
