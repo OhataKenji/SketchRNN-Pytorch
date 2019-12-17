@@ -54,8 +54,8 @@ class Trainer():
                     # TODO save optimizer of cpu
                     torch.save(self.enc_opt, str(self.checkpoint_dir) + '/enc_opt-' + str(float(self.mininum_loss)) + '.pth')
                     torch.save(self.dec_opt, str(self.checkpoint_dir) + '/dec_opt-' + str(float(self.mininum_loss)) + '.pth')
-                    self.model.encoder.gpu()
-                    self.model.decoder.gpu()
+                    self.model.encoder.to(device)
+                    self.model.decoder.to(device)
 
 
             x = x[:, 0, :].unsqueeze(1)
