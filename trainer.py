@@ -51,8 +51,13 @@ class Trainer():
                     self.mininum_loss = loss[0]
                     torch.save(self.model.encoder.cpu(), str(self.checkpoint_dir) + 'encoder-' + str(float(self.mininum_loss)) + '.pth')
                     torch.save(self.model.decoder.cpu(), str(self.checkpoint_dir) + 'decoder-' + str(float(self.mininum_loss)) + '.pth')
-                    torch.save(self.enc_opt, str(self.checkpoint_dir) + 'enc_opt-' + str(float(self.mininum_loss)) + '.pth')
-                    torch.save(self.dec_opt, str(self.checkpoint_dir) + 'dec_opt-' + str(float(self.mininum_loss)) + '.pth')
+                    torch.save(self.enc_opt.cpu(), str(self.checkpoint_dir) + 'enc_opt-' + str(float(self.mininum_loss)) + '.pth')
+                    torch.save(self.dec_opt.cpu(), str(self.checkpoint_dir) + 'dec_opt-' + str(float(self.mininum_loss)) + '.pth')
+                    self.model.encoder.gpu()
+                    self.model.decoder.gpu()
+                    self.enc_opt.gpu()
+                    self.dec_opt.gpu()
+
 
             x = x[:, 0, :].unsqueeze(1)
             origial = x
