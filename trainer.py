@@ -7,7 +7,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Trainer():
-    def __init__(self, model, data_loader, tb_writer, learning_rate=0.0001, wkl=1.0, clip_val=1.0):
+    def __init__(self, model, data_loader, tb_writer, checkpoint_dir=None, learning_rate=0.0001, wkl=1.0, clip_val=1.0):
         self.model = model
         self.data_loader = data_loader
         self.tb_writer = tb_writer
@@ -15,9 +15,11 @@ class Trainer():
             self.model.encoder.parameters(), lr=learning_rate)
         self.dec_opt = optim.Adam(
             self.model.decoder.parameters(), lr=learning_rate)
+        self.checkpoint_dir = checkpoint_dir
         self.wkl = wkl
         self.clip_val = clip_val
         self.epoch = 0
+        self.mininum_loss = 100.0
         # TODO plot Decoder Graph
         inputs = (self.data_loader.dataset[0])[0].unsqueeze(1)
         self.tb_writer.add_graph(self.model.encoder, inputs)
@@ -44,7 +46,14 @@ class Trainer():
                 self.tb_writer.add_scalar(
                     "loss/train/Lkl", loss[4], self.epoch)
 
-            # TODO save model
+                # Save model
+                if self.mininum_loss > loss[0]:
+                    self.mininum_loss = loss[0]
+                    torch.save(self.model.encoder, str(self.checkpoint_dir) + 'encoder-' + str(self.mininum_loss))
+                    torch.save(self.model.decoder, str(self.checkpoint_dir) + 'decoder-' + str(self.mininum_loss))
+                    torch.save(self.enc_opt, str(self.checkpoint_dir) + 'enc_opt-' + str(self.mininum_loss))
+                    torch.save(self.dec_opt, str(self.checkpoint_dir) + 'dec_opt-' + str(self.mininum_loss))
+
             x = x[:, 0, :].unsqueeze(1)
             origial = x
             self.tb_writer.add_text(

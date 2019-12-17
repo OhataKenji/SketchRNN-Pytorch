@@ -13,8 +13,9 @@ dataloader = torch.utils.data.DataLoader(
 log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/3'
 tb_writer = SummaryWriter(log_dir)
 
+checkpoint_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testcheckpoints/'
 model = SketchRNN()
-trainer = Trainer(model, dataloader, tb_writer)
+trainer = Trainer(model, dataloader, tb_writer, checkpoint_dir)
 
 trainer.train(epoch=3000)
 tb_writer.close()
