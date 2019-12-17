@@ -24,11 +24,11 @@ def endindex(x):
 
 def strokes2rgb(S):
     plt.axis('equal')
-    S = S.clone().detach()
+    S = S.clone().detach().cpu()
     N = S.shape[0]
 
     p2list = [-1]
-    prev = torch.Tensor([0, 0], device=device)
+    prev = torch.tensor([0, 0], device='cpu', dtype=torch.float)
     for i in range(N):
         S[i, 0, 0:2] += prev
         prev = S[i, 0, 0:2]
