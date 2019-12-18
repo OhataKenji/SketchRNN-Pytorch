@@ -19,7 +19,7 @@ class Trainer():
         self.wkl = wkl
         self.clip_val = clip_val
         self.epoch = 0
-        self.mininum_loss = 0
+        self.mininum_loss = -0.2
         # TODO plot Decoder Graph
         inputs = (self.data_loader.dataset[0])[0].unsqueeze(1)
         self.tb_writer.add_graph(self.model.encoder, inputs)
