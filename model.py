@@ -13,6 +13,8 @@ class SketchRNN():
 
     # TODO batch reconstruction
     def reconstruct(self, S):
+        self.encoder.eval()
+        self.decoder.eval()
         with torch.no_grad():
             Nmax = S.shape[0]
             batch_size = S.shape[1]
@@ -34,9 +36,11 @@ class SketchRNN():
 
     def sample_next(self, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q):
         pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q =\
-             pi[0, 0, :], mu_x[0, 0, :], mu_y[0,0, :], sigma_x[0, 0, :], sigma_y[0, 0, :], rho_xy[0, 0, :], q[0, 0, :]
+            pi[0, 0, :], mu_x[0, 0, :], mu_y[0, 0, :], sigma_x[0,
+                                                               0, :], sigma_y[0, 0, :], rho_xy[0, 0, :], q[0, 0, :]
         mu_x, mu_y, sigma_x, sigma_y, rho_xy =\
-            mu_x.cpu().numpy(), mu_y.cpu().numpy(), sigma_x.cpu().numpy(), sigma_y.cpu().numpy(), rho_xy.cpu().numpy()
+            mu_x.cpu().numpy(), mu_y.cpu().numpy(), sigma_x.cpu(
+            ).numpy(), sigma_y.cpu().numpy(), rho_xy.cpu().numpy()
         M = pi.shape[0]
         # offset
         idx = np.random.choice(M, p=pi.cpu().numpy())
@@ -92,7 +96,7 @@ class Decoder(nn.Module):
 
         h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
                              self.dec_hidden_size, 1)
-        h0c0 = (h0.unsqueeze(0).contiguous() , c0.unsqueeze(0).contiguous())
+        h0c0 = (h0.unsqueeze(0).contiguous(), c0.unsqueeze(0).contiguous())
 
         sos = torch.stack(
             [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)

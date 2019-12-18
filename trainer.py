@@ -77,7 +77,9 @@ class Trainer():
             self.tb_writer.flush()
 
     def train_on_batch(self, x):
+        self.model.encoder.train()
         self.model.encoder.zero_grad()
+        self.model.decoder.train()
         self.model.decoder.zero_grad()
 
         loss, _, _, _, _ = self.loss_on_batch(x)
