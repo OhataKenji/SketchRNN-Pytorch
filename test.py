@@ -8,9 +8,9 @@ from torch.utils.tensorboard import SummaryWriter
 data_path = Path.home() / 'MyDatasets/Sketches/apple/test.npy'
 dataset = V5Dataset(str(data_path), To5vStrokes(max_len=200), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
-    dataset, batch_size=1, shuffle=True)
+    dataset, batch_size=100, shuffle=True)
 
-log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/2'
+log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/t1'
 tb_writer = SummaryWriter(log_dir)
 
 checkpoint_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testcheckpoints/'

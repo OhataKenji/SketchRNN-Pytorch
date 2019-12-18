@@ -19,7 +19,7 @@ class Trainer():
         self.wkl = wkl
         self.clip_val = clip_val
         self.epoch = 0
-        self.mininum_loss = 100.0
+        self.mininum_loss = 0
         # TODO plot Decoder Graph
         inputs = (self.data_loader.dataset[0])[0].unsqueeze(1)
         self.tb_writer.add_graph(self.model.encoder, inputs)
@@ -145,8 +145,8 @@ def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
     M = mu_x.shape[2]
     #x = torch.stack([x]*M, dim=2)
     #y = torch.stack([y]*M, dim=2)
-    #x = x.unsqueeze(2)
-    #y = y.unsqueeze(2)
+    x = x.unsqueeze(2)
+    y = y.unsqueeze(2)
     norm1 = x - mu_x
     norm2 = y - mu_y
     sxsy = sigma_x * sigma_y
