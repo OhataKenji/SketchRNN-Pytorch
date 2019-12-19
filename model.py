@@ -69,7 +69,8 @@ class Encoder(nn.Module):
 
     def forward(self, inputs):
         _, (hidden, cell) = self.encoder_rnn(inputs)
-        h = torch.cat((hidden[0, :, :], hidden[1, :, :]), 1)
+        h_forward, h_backward = torch.split(hidden, 1, 0)
+        h = torch.cat([h_forward.squeeze(0), h_backward.squeeze(0)], 1)
 
         mu = self.fc_mu(h)
         sigma_hat = self.fc_sigma(h)
