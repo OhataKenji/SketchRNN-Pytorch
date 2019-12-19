@@ -23,8 +23,9 @@ class SketchRNN():
             output = s_i  # dummy
             z, _, _ = self.encoder(S)
             for i in range(Nmax):
+                s_i_z = torch.cat([s_i, z.unsqueeze(0)], 2)
                 (pi, mu_x, mu_y, sigma_x, sigma_y,
-                 rho_xy, q), _ = self.decoder(s_i, z)
+                 rho_xy, q), _ = self.decoder(s_i_z, z)
                 s_i = self.sample_next(
                     pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q)
                 output = torch.cat([output, s_i], dim=0)
@@ -91,24 +92,38 @@ class Decoder(nn.Module):
         self.decoder_rnn = nn.LSTM(Nz+5, dec_hidden_size, dropout=dropout)
         self.fc_y = nn.Linear(dec_hidden_size, 6*M+3)
 
-    def forward(self, dec_input, z):
-        seq_len = dec_input.shape[0]
-        h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
-                             self.dec_hidden_size, 1)
-        h0c0 = (h0.unsqueeze(0).contiguous(), c0.unsqueeze(0).contiguous())
+    def forward(self, dec_input, z, hidden_cell=None):
+        if hidden_cell is None:
+            # then we must init from z
+            hidden, cell = torch.split(
+                F.tanh(self.fc_hc(z)), self.dec_hidden_size, 1)
+            hidden_cell = (hidden.unsqueeze(0).contiguous(),
+                           cell.unsqueeze(0).contiguous())
+        outputs, (hidden, cell) = self.decoder_rnn(dec_input, hidden_cell)
+        # in training we feed the lstm with the whole input in one shot
+        # and use all outputs contained in 'outputs', while in generate
+        # mode we just feed with the last generated sample:
+        y = self.fc_y(outputs.view(-1, self.dec_hidden_size))
+        # separate pen and mixture params:
+        params = torch.split(y, 6, 1)
+        params_mixture = torch.stack(params[:-1])  # trajectory
+        params_pen = params[-1]  # pen up/down
+        # identify mixture params:
+        pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy = torch.split(
+            params_mixture, 1, 2)
+        # preprocess params::
+        len_out = dec_input.shape[0]
 
-        zs = torch.stack([z] * seq_len)
-        dec_input = torch.cat([dec_input, zs], 2)
-
-        o, (h, c) = self.decoder_rnn(dec_input, h0c0)
-        y = self.fc_y(o)
-
-        pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(
-            y, self.M, 2)
-        pi = F.softmax(pi_hat, dim=2)
-        sigma_x = torch.exp(sigma_x_hat)
-        sigma_y = torch.exp(sigma_y_hat)
-        rho_xy = torch.tanh(rho_xy)
-        q = F.softmax(q_hat, dim=2)
-
-        return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (h, c)
+        pi = F.softmax(pi.transpose(0, 1).squeeze()).view(len_out, -1, self.M)
+        sigma_x = torch.exp(sigma_x.transpose(
+            0, 1).squeeze()).view(len_out, -1, self.M)
+        sigma_y = torch.exp(sigma_y.transpose(
+            0, 1).squeeze()).view(len_out, -1, self.M)
+        rho_xy = torch.tanh(rho_xy.transpose(
+            0, 1).squeeze()).view(len_out, -1, self.M)
+        mu_x = mu_x.transpose(0, 1).squeeze(
+        ).contiguous().view(len_out, -1, self.M)
+        mu_y = mu_y.transpose(0, 1).squeeze(
+        ).contiguous().view(len_out, -1, self.M)
+        q = F.softmax(params_pen).view(len_out, -1, 3)
+        return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (hidden, cell)

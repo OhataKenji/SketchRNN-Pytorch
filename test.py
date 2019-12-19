@@ -10,7 +10,7 @@ dataset = V5Dataset(str(data_path), To5vStrokes(max_len=80), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=100, shuffle=True)
 
-log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/t6'
+log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/t8'
 tb_writer = SummaryWriter(log_dir)
 
 checkpoint_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testcheckpoints/'
