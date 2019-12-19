@@ -126,13 +126,13 @@ def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, Ns):
                            torch.zeros(Nmax - Ns[i], device=device, dtype=torch.float)]).unsqueeze(1)
         zero_out = torch.cat([zero_out, zeros], dim=1)
 
-    return -torch.sum(zero_out * torch.log(pdf_val + 1e-5)) \
+    return -torch.sum(zero_out * torch.log(pdf_val + 1e-4)) \
         / (Nmax * batch_size)
 
 
 def lp(p1, p2, p3, q):
     p = torch.cat([p1.unsqueeze(2), p2.unsqueeze(2), p3.unsqueeze(2)], dim=2)
-    return -torch.sum(p*torch.log(q + 1e-5)) \
+    return -torch.sum(p*torch.log(q + 1e-4)) \
         / (q.shape[0] * q.shape[1])
 
 
@@ -151,11 +151,11 @@ def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
     norm2 = y - mu_y
     sxsy = sigma_x * sigma_y
 
-    z = (norm1/(sigma_x + 1e-5))**2 + (norm2/(sigma_y + 1e-5))**2 -\
-        (2. * rho_xy * norm1 * norm2 / (sxsy + 1e-5))
+    z = (norm1/(sigma_x + 1e-4))**2 + (norm2/(sigma_y + 1e-4))**2 -\
+        (2. * rho_xy * norm1 * norm2 / (sxsy + 1e-4))
 
     neg_rho = 1 - rho_xy**2
-    result = torch.exp(-z/(2.*neg_rho + 1e-5))
-    denom = 2. * np.pi * sxsy * torch.sqrt(neg_rho) + 1e-5
+    result = torch.exp(-z/(2.*neg_rho + 1e-4))
+    denom = 2. * np.pi * sxsy * torch.sqrt(neg_rho) + 1e-4
     result = result / denom
     return result
