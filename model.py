@@ -90,24 +90,20 @@ class Decoder(nn.Module):
         self.decoder_rnn = nn.LSTM(Nz+5, dec_hidden_size, dropout=dropout)
         self.fc_y = nn.Linear(dec_hidden_size, 6*M+3)
 
-    def forward(self, S, z):
-        batch_size = S.shape[1]
-        seq_len = S.shape[0]
-
+    def forward(self, dec_input, z):
+        seq_len = dec_input.shape[0]
         h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
                              self.dec_hidden_size, 1)
         h0c0 = (h0.unsqueeze(0).contiguous(), c0.unsqueeze(0).contiguous())
 
-        sos = torch.stack(
-            [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)
         zs = torch.stack([z] * seq_len)
-        dec_input = torch.cat([sos, S[:-1, :, :]], 0)
         dec_input = torch.cat([dec_input, zs], 2)
 
         o, (h, c) = self.decoder_rnn(dec_input, h0c0)
         y = self.fc_y(o)
 
-        pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(y, self.M, 2)
+        pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(
+            y, self.M, 2)
         pi = F.softmax(pi_hat, dim=2)
         sigma_x = torch.exp(sigma_x_hat)
         sigma_y = torch.exp(sigma_y_hat)
