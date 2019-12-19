@@ -143,8 +143,6 @@ def lkl(mu, sigma):
 
 def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
     M = mu_x.shape[2]
-    #x = torch.stack([x]*M, dim=2)
-    #y = torch.stack([y]*M, dim=2)
     x = x.unsqueeze(2)
     y = y.unsqueeze(2)
     norm1 = x - mu_x

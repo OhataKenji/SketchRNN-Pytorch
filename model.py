@@ -107,12 +107,11 @@ class Decoder(nn.Module):
         o, (h, c) = self.decoder_rnn(dec_input, h0c0)
         y = self.fc_y(o)
 
-        pi = F.softmax(y[:, :, 0:self.M], dim=2)
-        mu_x = y[:, :, self.M:2*self.M]
-        mu_y = y[:, :, 2*self.M:3*self.M]
-        sigma_x = torch.exp(y[:, :, 3*self.M:4*self.M])
-        sigma_y = torch.exp(y[:, :, 4*self.M:5*self.M])
-        rho_xy = torch.tanh(y[:, :, 5*self.M:6*self.M])
-        q = F.softmax(y[:, :, 6*self.M:6*self.M+3], dim=2)
+        pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(y, self.M, 2)
+        pi = F.softmax(pi_hat, dim=2)
+        sigma_x = torch.exp(sigma_x_hat)
+        sigma_y = torch.exp(sigma_y_hat)
+        rho_xy = torch.tanh(rho_xy)
+        q = F.softmax(q_hat, dim=2)
 
         return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (h, c)
