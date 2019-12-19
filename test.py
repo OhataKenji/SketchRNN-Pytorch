@@ -5,12 +5,12 @@ from trainer import Trainer
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 
-data_path = Path.home() / 'MyDatasets/Sketches/apple/test.npy'
-dataset = V5Dataset(str(data_path), To5vStrokes(max_len=200), pre_scaling=True)
+data_path = Path.home() / 'MyDatasets/Sketches/apple/train.npy'
+dataset = V5Dataset(str(data_path), To5vStrokes(max_len=80), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=100, shuffle=True)
 
-log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/t1'
+log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/t6'
 tb_writer = SummaryWriter(log_dir)
 
 checkpoint_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testcheckpoints/'
