@@ -24,9 +24,8 @@ class SketchRNN():
             z, _, _ = self.encoder(S)
             hidden_cell = None
             for i in range(Nmax):
-                s_i_z = torch.cat([s_i, z.unsqueeze(0)], 2)
                 (pi, mu_x, mu_y, sigma_x, sigma_y,
-                 rho_xy, q), hidden_cell = self.decoder(s_i_z, z, hidden_cell)
+                 rho_xy, q), hidden_cell = self.decoder(s_i, z, hidden_cell)
                 s_i = self.sample_next(
                     pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q)
                 output = torch.cat([output, s_i], dim=0)
@@ -93,12 +92,16 @@ class Decoder(nn.Module):
         self.decoder_rnn = nn.LSTM(Nz+5, dec_hidden_size, dropout=dropout)
         self.fc_y = nn.Linear(dec_hidden_size, 6*M+3)
 
-    def forward(self, dec_input, z, hidden_cell=None):
+    def forward(self, x, z, hidden_cell=None):
+        Nmax = x.shape[0]
         if hidden_cell is None:
             h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
                                  self.dec_hidden_size, 1)
             hidden_cell = (h0.unsqueeze(0).contiguous(),
                            c0.unsqueeze(0).contiguous())
+
+        zs = torch.stack([z] * Nmax)
+        dec_input = torch.cat([x, zs], 2)
 
         o, (h, c) = self.decoder_rnn(dec_input, hidden_cell)
         y = self.fc_y(o)

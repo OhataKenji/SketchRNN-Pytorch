@@ -95,7 +95,6 @@ class Trainer():
         self.dec_opt.step()
 
     def loss_on_batch(self, x, Ns):
-        seq_len = x.shape[0]
         batch_size = x.shape[1]
 
         z, mu, sigma_hat = self.model.encoder(x)
@@ -103,9 +102,6 @@ class Trainer():
         sos = torch.stack(
             [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)
         dec_input = torch.cat([sos, x[:-1, :, :]], 0)
-
-        zs = torch.stack([z] * seq_len)
-        dec_input = torch.cat([dec_input, zs], 2)
 
         (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy,
          q), _ = self.model.decoder(dec_input, z)
