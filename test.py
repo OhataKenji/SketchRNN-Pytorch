@@ -6,7 +6,7 @@ from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 
 data_path = Path.home() / 'MyDatasets/Sketches/apple/train.npy'
-dataset = V5Dataset(str(data_path), To5vStrokes(max_len=80), pre_scaling=True)
+dataset = V5Dataset(str(data_path), To5vStrokes(max_len=200), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=100, shuffle=True)
 
