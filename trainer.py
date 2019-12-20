@@ -102,17 +102,14 @@ class Trainer():
 
         sos = torch.stack(
             [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)
-        dec_input = torch.cat([sos, x], 0)
+        dec_input = torch.cat([sos, x[:-1, :, :]], 0)
 
-        zs = torch.stack([z] * (seq_len+1))
+        zs = torch.stack([z] * seq_len)
         dec_input = torch.cat([dec_input, zs], 2)
 
         (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy,
          q), _ = self.model.decoder(dec_input, z)
 
-        eos = torch.stack(
-            [torch.tensor([0, 0, 0, 0, 1], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)
-        x = torch.cat([x, eos], 0)
         zero_out = 1 - x[:, :, 4]
         Ls = ls(x[:, :, 0], x[:, :, 1],
                 pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, zero_out)
@@ -138,7 +135,7 @@ def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, zero_out):
                                            sigma_x, sigma_y, rho_xy), dim=2)
 
     return -torch.sum(zero_out * torch.log(pdf_val + 1e-5)) \
-        / (Nmax * batch_size + 1e-5)
+        / (Nmax * batch_size)
 
 
 def lp(p1, p2, p3, q):
@@ -155,10 +152,15 @@ def lkl(mu, sigma):
 def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
     x = x.unsqueeze(2)
     y = y.unsqueeze(2)
-    z_x = ((x-mu_x)/sigma_x + 1e-5)**2
-    z_y = ((y-mu_y)/sigma_y + 1e-5)**2
-    z_xy = (x-mu_x)*(y-mu_y)/(sigma_x*sigma_y + 1e-5)
-    z = z_x + z_y - 2*rho_xy*z_xy
-    exp = torch.exp(-z/(2*(1-rho_xy**2) + 1e-5))
-    norm = 2*np.pi*sigma_x*sigma_y*torch.sqrt(1-rho_xy**2) + 1e-5
-    return exp/norm
+    norm1 = x - mu_x
+    norm2 = y - mu_y
+    sxsy = sigma_x * sigma_y
+
+    z = (norm1/(sigma_x + 1e-5))**2 + (norm2/(sigma_y + 1e-5))**2 -\
+        (2. * rho_xy * norm1 * norm2 / (sxsy + 1e-5))
+
+    neg_rho = 1 - rho_xy**2
+    result = torch.exp(-z/(2.*neg_rho + 1e-5))
+    denom = 2. * np.pi * sxsy * torch.sqrt(neg_rho + 1e-5) + 1e-5
+    result = result / denom
+    return result

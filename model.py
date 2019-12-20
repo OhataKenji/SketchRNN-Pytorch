@@ -38,8 +38,8 @@ class SketchRNN():
 
     def sample_next(self, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q):
         pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q =\
-            pi[-1, 0, :], mu_x[-1, 0, :], mu_y[-1, 0, :], sigma_x[-1,
-                                                                  0, :], sigma_y[-1, 0, :], rho_xy[-1, 0, :], q[-1, 0, :]
+            pi[0, 0, :], mu_x[0, 0, :], mu_y[0, 0, :], sigma_x[0,
+                                                               0, :], sigma_y[0, 0, :], rho_xy[0, 0, :], q[0, 0, :]
         mu_x, mu_y, sigma_x, sigma_y, rho_xy =\
             mu_x.cpu().numpy(), mu_y.cpu().numpy(), sigma_x.cpu(
             ).numpy(), sigma_y.cpu().numpy(), rho_xy.cpu().numpy()
@@ -95,36 +95,19 @@ class Decoder(nn.Module):
 
     def forward(self, dec_input, z, hidden_cell=None):
         if hidden_cell is None:
-            # then we must init from z
-            hidden, cell = torch.split(
-                F.tanh(self.fc_hc(z)), self.dec_hidden_size, 1)
-            hidden_cell = (hidden.unsqueeze(0).contiguous(),
-                           cell.unsqueeze(0).contiguous())
-        outputs, (hidden, cell) = self.decoder_rnn(dec_input, hidden_cell)
-        # in training we feed the lstm with the whole input in one shot
-        # and use all outputs contained in 'outputs', while in generate
-        # mode we just feed with the last generated sample:
-        y = self.fc_y(outputs.view(-1, self.dec_hidden_size))
-        # separate pen and mixture params:
-        params = torch.split(y, 6, 1)
-        params_mixture = torch.stack(params[:-1])  # trajectory
-        params_pen = params[-1]  # pen up/down
-        # identify mixture params:
-        pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy = torch.split(
-            params_mixture, 1, 2)
-        # preprocess params::
-        len_out = dec_input.shape[0]
+            h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
+                                 self.dec_hidden_size, 1)
+            hidden_cell = (h0.unsqueeze(0).contiguous(),
+                           c0.unsqueeze(0).contiguous())
 
-        pi = F.softmax(pi.transpose(0, 1).squeeze()).view(len_out, -1, self.M)
-        sigma_x = torch.exp(sigma_x.transpose(
-            0, 1).squeeze()).view(len_out, -1, self.M)
-        sigma_y = torch.exp(sigma_y.transpose(
-            0, 1).squeeze()).view(len_out, -1, self.M)
-        rho_xy = torch.tanh(rho_xy.transpose(
-            0, 1).squeeze()).view(len_out, -1, self.M)
-        mu_x = mu_x.transpose(0, 1).squeeze(
-        ).contiguous().view(len_out, -1, self.M)
-        mu_y = mu_y.transpose(0, 1).squeeze(
-        ).contiguous().view(len_out, -1, self.M)
-        q = F.softmax(params_pen).view(len_out, -1, 3)
-        return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (hidden, cell)
+        o, (h, c) = self.decoder_rnn(dec_input, hidden_cell)
+        y = self.fc_y(o)
+
+        pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(
+            y, self.M, 2)
+        pi = F.softmax(pi_hat, dim=2)
+        sigma_x = torch.exp(sigma_x_hat)
+        sigma_y = torch.exp(sigma_y_hat)
+        rho_xy = torch.tanh(rho_xy)
+        q = F.softmax(q_hat, dim=2)
+        return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (h, c)
