@@ -22,10 +22,11 @@ class SketchRNN():
                 [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)] * batch_size, dim=0).unsqueeze(0)
             output = s_i  # dummy
             z, _, _ = self.encoder(S)
+            hidden_cell = None
             for i in range(Nmax):
                 s_i_z = torch.cat([s_i, z.unsqueeze(0)], 2)
                 (pi, mu_x, mu_y, sigma_x, sigma_y,
-                 rho_xy, q), _ = self.decoder(s_i_z, z)
+                 rho_xy, q), hidden_cell = self.decoder(s_i_z, z, hidden_cell)
                 s_i = self.sample_next(
                     pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q)
                 output = torch.cat([output, s_i], dim=0)
@@ -37,8 +38,8 @@ class SketchRNN():
 
     def sample_next(self, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q):
         pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q =\
-            pi[0, 0, :], mu_x[0, 0, :], mu_y[0, 0, :], sigma_x[0,
-                                                               0, :], sigma_y[0, 0, :], rho_xy[0, 0, :], q[0, 0, :]
+            pi[-1, 0, :], mu_x[-1, 0, :], mu_y[-1, 0, :], sigma_x[-1,
+                                                                  0, :], sigma_y[-1, 0, :], rho_xy[-1, 0, :], q[-1, 0, :]
         mu_x, mu_y, sigma_x, sigma_y, rho_xy =\
             mu_x.cpu().numpy(), mu_y.cpu().numpy(), sigma_x.cpu(
             ).numpy(), sigma_y.cpu().numpy(), rho_xy.cpu().numpy()
@@ -77,8 +78,8 @@ class Encoder(nn.Module):
         sigma_hat = self.fc_sigma(h)
         sigma = torch.exp(sigma_hat/2.)
 
-        N = torch.normal(torch.zeros(mu.size()),
-                         torch.ones(mu.size())).to(device)
+        N = torch.normal(torch.zeros(mu.size(), device=device),
+                         torch.ones(mu.size(), device=device))
         z = mu + sigma * N
         return z, mu, sigma_hat
 

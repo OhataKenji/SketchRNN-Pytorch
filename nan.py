@@ -10,7 +10,7 @@ dataset = V5Dataset(str(data_path), To5vStrokes(max_len=80), pre_scaling=True)
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=100, shuffle=True)
 
-log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/t8'
+log_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testlogs/nan'
 tb_writer = SummaryWriter(log_dir)
 
 checkpoint_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testcheckpoints/'
@@ -19,6 +19,7 @@ model = SketchRNN(enc_hidden_size=256, dec_hidden_size=512,
 trainer = Trainer(model, dataloader, tb_writer,
                   checkpoint_dir, learning_rate=0.001)
 
-trainer.train(epoch=300000)
+with torch.autograd.detect_anomaly():
+    trainer.train(epoch=300000)
 
 tb_writer.close()
