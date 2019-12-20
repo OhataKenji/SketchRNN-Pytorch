@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.optim as optim
-from utils import ns, strokes2rgb
+from utils import strokes2rgb
 from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,13 +32,13 @@ class Trainer():
             self.tb_writer.add_scalar('progress/epoch', self.epoch, self.epoch)
 
             x = None
-            for x, _ in tqdm(self.data_loader, ascii=True):
+            for x, Ns in tqdm(self.data_loader, ascii=True):
                 x = x.permute(1, 0, 2)
-                self.train_on_batch(x)
+                self.train_on_batch(x, Ns)
 
             # TODO fix proper batch to calculate loss
             with torch.no_grad():
-                loss = self.loss_on_batch(x)
+                loss = self.loss_on_batch(x, Ns)
                 self.tb_writer.add_scalar("loss/train", loss[0], self.epoch)
                 self.tb_writer.add_scalar("loss/train/Ls", loss[1], self.epoch)
                 self.tb_writer.add_scalar("loss/train/Lp", loss[2], self.epoch)
@@ -47,19 +47,20 @@ class Trainer():
                     "loss/train/Lkl", loss[4], self.epoch)
 
                 # Save model
-                if self.mininum_loss > loss[0]:
-                    self.mininum_loss = loss[0]
-                    torch.save(self.model.encoder.cpu(), str(
-                        self.checkpoint_dir) + '/encoder-' + str(float(self.mininum_loss)) + '.pth')
-                    torch.save(self.model.decoder.cpu(), str(
-                        self.checkpoint_dir) + '/decoder-' + str(float(self.mininum_loss)) + '.pth')
-                    # TODO save optimizer of cpu
-                    torch.save(self.enc_opt, str(self.checkpoint_dir) +
-                               '/enc_opt-' + str(float(self.mininum_loss)) + '.pth')
-                    torch.save(self.dec_opt, str(self.checkpoint_dir) +
-                               '/dec_opt-' + str(float(self.mininum_loss)) + '.pth')
-                    self.model.encoder.to(device)
-                    self.model.decoder.to(device)
+                if self.epoch % 10 == 0:
+                    if self.mininum_loss > loss[0]:
+                        self.mininum_loss = loss[0]
+                        torch.save(self.model.encoder.cpu(), str(
+                            self.checkpoint_dir) + '/encoder-' + str(float(self.mininum_loss)) + '.pth')
+                        torch.save(self.model.decoder.cpu(), str(
+                            self.checkpoint_dir) + '/decoder-' + str(float(self.mininum_loss)) + '.pth')
+                        # TODO save optimizer of cpu
+                        torch.save(self.enc_opt, str(self.checkpoint_dir) +
+                                   '/enc_opt-' + str(float(self.mininum_loss)) + '.pth')
+                        torch.save(self.dec_opt, str(self.checkpoint_dir) +
+                                   '/dec_opt-' + str(float(self.mininum_loss)) + '.pth')
+                        self.model.encoder.to(device)
+                        self.model.decoder.to(device)
 
             x = x[:, 0, :].unsqueeze(1)
             origial = x
@@ -76,13 +77,13 @@ class Trainer():
 
             self.tb_writer.flush()
 
-    def train_on_batch(self, x):
+    def train_on_batch(self, x, Ns):
         self.model.encoder.train()
         self.model.encoder.zero_grad()
         self.model.decoder.train()
         self.model.decoder.zero_grad()
 
-        loss, _, _, _, _ = self.loss_on_batch(x)
+        loss, _, _, _, _ = self.loss_on_batch(x, Ns)
         loss.backward()
 
         torch.nn.utils.clip_grad_value_(
@@ -93,7 +94,8 @@ class Trainer():
         self.enc_opt.step()
         self.dec_opt.step()
 
-    def loss_on_batch(self, x):
+    def loss_on_batch(self, x, Ns):
+        seq_len = x.shape[0]
         batch_size = x.shape[1]
 
         z, mu, sigma_hat = self.model.encoder(x)
@@ -102,37 +104,37 @@ class Trainer():
             [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)
         dec_input = torch.cat([sos, x[:-1, :, :]], 0)
 
+        zs = torch.stack([z] * seq_len)
+        dec_input = torch.cat([dec_input, zs], 2)
+
         (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy,
          q), _ = self.model.decoder(dec_input, z)
 
-        Ns = ns(x)
+        zero_out = 1 - x[:, :, 4]
         Ls = ls(x[:, :, 0], x[:, :, 1],
-                pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, Ns)
+                pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, zero_out)
         Lp = lp(x[:, :, 2], x[:, :, 3],
                 x[:, :, 4], q)
         Lr = Ls + Lp
 
         Lkl = lkl(mu, sigma_hat)
         loss = Lr + self.wkl * Lkl
+        if torch.isnan(loss):
+            print("loss", loss)
+            print("Ls", Ls)
+            print("Lp", Lp)
+            print("Lkl", Lkl)
         return loss, Ls, Lp, Lr, Lkl
 
 
-def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, Ns):
+def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, zero_out):
     Nmax = x.shape[0]
     batch_size = x.shape[1]
 
     pdf_val = torch.sum(pi * pdf_2d_normal(x, y, mu_x, mu_y,
                                            sigma_x, sigma_y, rho_xy), dim=2)
 
-    # make zero_out
-    zero_out = torch.cat([torch.ones(Ns[0], device=device, dtype=torch.float),
-                          torch.zeros(Nmax - Ns[0], device=device, dtype=torch.float)]).unsqueeze(1)
-    for i in range(1, batch_size):
-        zeros = torch.cat([torch.ones(Ns[i], device=device, dtype=torch.float),
-                           torch.zeros(Nmax - Ns[i], device=device, dtype=torch.float)]).unsqueeze(1)
-        zero_out = torch.cat([zero_out, zeros], dim=1)
-
-    return -torch.sum(zero_out * torch.log(pdf_val + 1e-4)) \
+    return -torch.sum(zero_out * torch.log(pdf_val + 1e-5)) \
         / (Nmax * batch_size)
 
 
@@ -148,7 +150,6 @@ def lkl(mu, sigma):
 
 
 def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
-    M = mu_x.shape[2]
     x = x.unsqueeze(2)
     y = y.unsqueeze(2)
     norm1 = x - mu_x
@@ -159,7 +160,7 @@ def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):
         (2. * rho_xy * norm1 * norm2 / (sxsy + 1e-4))
 
     neg_rho = 1 - rho_xy**2
-    result = torch.exp(-z/(2.*neg_rho + 1e-4))
-    denom = 2. * np.pi * sxsy * torch.sqrt(neg_rho) + 1e-4
+    result = torch.exp(-z/(2.*neg_rho + 1e-5))
+    denom = 2. * np.pi * sxsy * torch.sqrt(neg_rho + 1e-5) + 1e-5
     result = result / denom
     return result

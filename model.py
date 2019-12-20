@@ -22,9 +22,11 @@ class SketchRNN():
                 [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)] * batch_size, dim=0).unsqueeze(0)
             output = s_i  # dummy
             z, _, _ = self.encoder(S)
+            hidden_cell = None
             for i in range(Nmax):
+                s_i_z = torch.cat([s_i, z.unsqueeze(0)], 2)
                 (pi, mu_x, mu_y, sigma_x, sigma_y,
-                 rho_xy, q), _ = self.decoder(s_i, z)
+                 rho_xy, q), hidden_cell = self.decoder(s_i_z, z, hidden_cell)
                 s_i = self.sample_next(
                     pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q)
                 output = torch.cat([output, s_i], dim=0)
@@ -69,14 +71,15 @@ class Encoder(nn.Module):
 
     def forward(self, inputs):
         _, (hidden, cell) = self.encoder_rnn(inputs)
-        h = torch.cat((hidden[0, :, :], hidden[1, :, :]), 1)
+        h_forward, h_backward = torch.split(hidden, 1, 0)
+        h = torch.cat([h_forward.squeeze(0), h_backward.squeeze(0)], 1)
 
         mu = self.fc_mu(h)
         sigma_hat = self.fc_sigma(h)
         sigma = torch.exp(sigma_hat/2.)
 
-        N = torch.normal(torch.zeros(mu.size()),
-                         torch.ones(mu.size())).to(device)
+        N = torch.normal(torch.zeros(mu.size(), device=device),
+                         torch.ones(mu.size(), device=device))
         z = mu + sigma * N
         return z, mu, sigma_hat
 
@@ -90,16 +93,14 @@ class Decoder(nn.Module):
         self.decoder_rnn = nn.LSTM(Nz+5, dec_hidden_size, dropout=dropout)
         self.fc_y = nn.Linear(dec_hidden_size, 6*M+3)
 
-    def forward(self, dec_input, z):
-        seq_len = dec_input.shape[0]
-        h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
-                             self.dec_hidden_size, 1)
-        h0c0 = (h0.unsqueeze(0).contiguous(), c0.unsqueeze(0).contiguous())
+    def forward(self, dec_input, z, hidden_cell=None):
+        if hidden_cell is None:
+            h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
+                                 self.dec_hidden_size, 1)
+            hidden_cell = (h0.unsqueeze(0).contiguous(),
+                           c0.unsqueeze(0).contiguous())
 
-        zs = torch.stack([z] * seq_len)
-        dec_input = torch.cat([dec_input, zs], 2)
-
-        o, (h, c) = self.decoder_rnn(dec_input, h0c0)
+        o, (h, c) = self.decoder_rnn(dec_input, hidden_cell)
         y = self.fc_y(o)
 
         pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(
@@ -109,5 +110,4 @@ class Decoder(nn.Module):
         sigma_y = torch.exp(sigma_y_hat)
         rho_xy = torch.tanh(rho_xy)
         q = F.softmax(q_hat, dim=2)
-
         return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (h, c)

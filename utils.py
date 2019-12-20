@@ -6,22 +6,6 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def ns(x):
-    Ns = []
-    for i in range(x.shape[1]):
-        Ns.append(endindex(x[:, i, :]))
-
-    return Ns
-
-
-def endindex(x):
-    Nmax = x.shape[0]
-    for i in range(Nmax):
-        if x[i, 4] == 1:
-            return i
-    return Nmax-1
-
-
 def strokes2rgb(S):
     plt.axis('equal')
     S = S.clone().detach().cpu()
