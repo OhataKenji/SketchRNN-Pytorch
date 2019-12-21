@@ -7,7 +7,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Trainer():
-    def __init__(self, model, data_loader, tb_writer, checkpoint_dir=None, learning_rate=0.0001, wkl=1.0, clip_val=1.0):
+    def __init__(self, model, data_loader, tb_writer, checkpoint_dir=None, learning_rate=0.0001, wkl=1.0, eta_min=0.0, R=0.99999, clip_val=1.0):
         self.model = model
         self.data_loader = data_loader
         self.tb_writer = tb_writer
@@ -19,7 +19,11 @@ class Trainer():
         self.wkl = wkl
         self.clip_val = clip_val
         self.epoch = 0
-        self.mininum_loss = -0.2
+        self.mininum_loss = -0.2  # from this loss, the trainer save models
+        self.eta_min = eta_min
+        self.R = R
+        self.step_per_epoch = len(
+            self.data_loader.dataset) / self.data_loader.batch_size
         # TODO plot Decoder Graph
         inputs = (self.data_loader.dataset[0])[0].unsqueeze(1)
         self.tb_writer.add_graph(self.model.encoder, inputs)
@@ -116,14 +120,11 @@ class Trainer():
         Lp = lp(x[:, :, 2], x[:, :, 3],
                 x[:, :, 4], q)
         Lr = Ls + Lp
-
         Lkl = lkl(mu, sigma_hat)
-        loss = Lr + self.wkl * Lkl
-        if torch.isnan(loss):
-            print("loss", loss)
-            print("Ls", Ls)
-            print("Lp", Lp)
-            print("Lkl", Lkl)
+
+        step = self.step_per_epoch * self.epoch
+        eta = 1.0 - (1.0 - self.eta_min) * self.R**step
+        loss = Lr + self.wkl * eta * Lkl
         return loss, Ls, Lp, Lr, Lkl
 
 
@@ -144,9 +145,13 @@ def lp(p1, p2, p3, q):
         / (q.shape[0] * q.shape[1])
 
 
-def lkl(mu, sigma):
-    return -torch.sum(1+sigma - mu**2 - torch.exp(sigma)) \
+def lkl(mu, sigma, KLmin=0.2):
+    lkl = -torch.sum(1+sigma - mu**2 - torch.exp(sigma)) \
         / (2. * mu.shape[0] * mu.shape[1])
+
+    KLmin = torch.tensor(KLmin, device=device)
+
+    return torch.max(lkl, KLmin)
 
 
 def pdf_2d_normal(x, y, mu_x, mu_y, sigma_x, sigma_y, rho_xy):

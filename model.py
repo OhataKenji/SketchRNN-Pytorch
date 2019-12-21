@@ -7,9 +7,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class SketchRNN():
-    def __init__(self, enc_hidden_size=512, dec_hidden_size=2048, Nz=128, M=20, dropout=0.1):
-        self.encoder = Encoder(enc_hidden_size, Nz, dropout).to(device)
-        self.decoder = Decoder(dec_hidden_size, Nz, M, dropout).to(device)
+    def __init__(self, enc_hidden_size=512, dec_hidden_size=2048, Nz=128, M=20, tau=1.0, dropout=0.1):
+        self.encoder = Encoder(enc_hidden_size, Nz, dropout=dropout).to(device)
+        self.decoder = Decoder(dec_hidden_size, Nz, M,
+                               tau, dropout=dropout).to(device)
 
     # TODO batch reconstruction
     def reconstruct(self, S):
@@ -87,13 +88,14 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, dec_hidden_size=2048, Nz=128, M=20, dropout=0.1):
+    def __init__(self, dec_hidden_size=2048, Nz=128, M=20, tau=1.0, dropout=0.1):
         super().__init__()
         self.M = M
         self.dec_hidden_size = dec_hidden_size
         self.fc_hc = nn.Linear(Nz, 2*dec_hidden_size)
         self.decoder_rnn = nn.LSTM(Nz+5, dec_hidden_size, dropout=dropout)
         self.fc_y = nn.Linear(dec_hidden_size, 6*M+3)
+        self.tau = tau
 
     def forward(self, x, z, hidden_cell=None):
         Nmax = x.shape[0]
@@ -106,8 +108,8 @@ class Decoder(nn.Module):
         pi_hat, mu_x, mu_y, sigma_x_hat, sigma_y_hat, rho_xy, q_hat = torch.split(
             y, self.M, 2)
         pi = F.softmax(pi_hat, dim=2)
-        sigma_x = torch.exp(sigma_x_hat)
-        sigma_y = torch.exp(sigma_y_hat)
+        sigma_x = torch.exp(sigma_x_hat) * np.sqrt(self.tau)
+        sigma_y = torch.exp(sigma_y_hat) * np.sqrt(self.tau)
         rho_xy = torch.tanh(rho_xy)
         q = F.softmax(q_hat, dim=2)
         return (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, q), (h, c)
