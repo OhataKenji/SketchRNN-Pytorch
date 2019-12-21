@@ -22,7 +22,10 @@ class SketchRNN():
                 [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)] * batch_size, dim=0).unsqueeze(0)
             output = s_i  # dummy
             z, _, _ = self.encoder(S)
-            hidden_cell = None
+            h0, c0 = torch.split(torch.tanh(self.decoder.fc_hc(z)),
+                                 self.decoder.dec_hidden_size, 1)
+            hidden_cell = (h0.unsqueeze(0).contiguous(),
+                           c0.unsqueeze(0).contiguous())
             for i in range(Nmax):
                 (pi, mu_x, mu_y, sigma_x, sigma_y,
                  rho_xy, q), hidden_cell = self.decoder(s_i, z, hidden_cell)
@@ -94,12 +97,6 @@ class Decoder(nn.Module):
 
     def forward(self, x, z, hidden_cell=None):
         Nmax = x.shape[0]
-        if hidden_cell is None:
-            h0, c0 = torch.split(torch.tanh(self.fc_hc(z)),
-                                 self.dec_hidden_size, 1)
-            hidden_cell = (h0.unsqueeze(0).contiguous(),
-                           c0.unsqueeze(0).contiguous())
-
         zs = torch.stack([z] * Nmax)
         dec_input = torch.cat([x, zs], 2)
 

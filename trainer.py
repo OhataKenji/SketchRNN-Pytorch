@@ -102,9 +102,13 @@ class Trainer():
         sos = torch.stack(
             [torch.tensor([0, 0, 1, 0, 0], device=device, dtype=torch.float)]*batch_size).unsqueeze(0)
         dec_input = torch.cat([sos, x[:-1, :, :]], 0)
+        h0, c0 = torch.split(torch.tanh(self.model.decoder.fc_hc(z)),
+                             self.model.decoder.dec_hidden_size, 1)
+        hidden_cell = (h0.unsqueeze(0).contiguous(),
+                       c0.unsqueeze(0).contiguous())
 
         (pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy,
-         q), _ = self.model.decoder(dec_input, z)
+         q), _ = self.model.decoder(dec_input, z, hidden_cell)
 
         zero_out = 1 - x[:, :, 4]
         Ls = ls(x[:, :, 0], x[:, :, 1],
