@@ -32,25 +32,25 @@ class Trainer():
 
     def train(self, epoch):
         for e in range(epoch):
-            self.epoch += 1
-            self.tb_writer.add_scalar('progress/epoch', self.epoch, self.epoch)
-
             x = None
-            for x, Ns in tqdm(self.data_loader, ascii=True):
+            step_in_epoch = 0
+            for x, _ in tqdm(self.data_loader, ascii=True):
                 x = x.permute(1, 0, 2)
-                self.train_on_batch(x, Ns)
+                self.train_on_batch(x, step_in_epoch)
+                step_in_epoch += 1
+            self.epoch += 1
 
             # TODO fix proper batch to calculate loss
             with torch.no_grad():
-                loss = self.loss_on_batch(x, Ns)
+                loss = self.loss_on_batch(x)
                 self.tb_writer.add_scalar("loss/train", loss[0], self.epoch)
                 self.tb_writer.add_scalar("loss/train/Ls", loss[1], self.epoch)
                 self.tb_writer.add_scalar("loss/train/Lp", loss[2], self.epoch)
                 self.tb_writer.add_scalar("loss/train/Lr", loss[3], self.epoch)
                 self.tb_writer.add_scalar(
-                    "loss/train/wkl*eta*Lr", loss[4], self.epoch)
-                self.tb_writer.add_scalar(
                     "loss/train/Lkl", loss[4], self.epoch)
+                self.tb_writer.add_scalar(
+                    "loss/train/wkl*eta*Lkl", loss[5], self.epoch)
 
                 # Save model
                 if self.epoch % 10 == 0:
@@ -83,13 +83,13 @@ class Trainer():
 
             self.tb_writer.flush()
 
-    def train_on_batch(self, x, Ns):
+    def train_on_batch(self, x, step_in_epoch=0):
         self.model.encoder.train()
         self.model.encoder.zero_grad()
         self.model.decoder.train()
         self.model.decoder.zero_grad()
 
-        loss, _, _, _, _, _ = self.loss_on_batch(x, Ns)
+        loss, _, _, _, _, _ = self.loss_on_batch(x, step_in_epoch)
         loss.backward()
 
         torch.nn.utils.clip_grad_value_(
@@ -100,7 +100,7 @@ class Trainer():
         self.enc_opt.step()
         self.dec_opt.step()
 
-    def loss_on_batch(self, x, Ns):
+    def loss_on_batch(self, x, step_in_epoch=0):
         batch_size = x.shape[1]
 
         z, mu, sigma_hat = self.model.encoder(x)
@@ -124,7 +124,7 @@ class Trainer():
         Lr = Ls + Lp
         Lkl = lkl(mu, sigma_hat)
 
-        step = self.step_per_epoch * self.epoch
+        step = step_in_epoch + self.step_per_epoch * self.epoch
         eta = 1.0 - (1.0 - self.eta_min) * self.R**step
         loss = Lr + self.wkl * eta * Lkl
         return loss, Ls, Lp, Lr, Lkl, self.wkl * eta * Lkl
