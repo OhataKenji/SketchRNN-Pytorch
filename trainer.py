@@ -48,6 +48,8 @@ class Trainer():
                 self.tb_writer.add_scalar("loss/train/Lp", loss[2], self.epoch)
                 self.tb_writer.add_scalar("loss/train/Lr", loss[3], self.epoch)
                 self.tb_writer.add_scalar(
+                    "loss/train/wkl*eta*Lr", loss[4], self.epoch)
+                self.tb_writer.add_scalar(
                     "loss/train/Lkl", loss[4], self.epoch)
 
                 # Save model
@@ -87,7 +89,7 @@ class Trainer():
         self.model.decoder.train()
         self.model.decoder.zero_grad()
 
-        loss, _, _, _, _ = self.loss_on_batch(x, Ns)
+        loss, _, _, _, _, _ = self.loss_on_batch(x, Ns)
         loss.backward()
 
         torch.nn.utils.clip_grad_value_(
@@ -125,7 +127,7 @@ class Trainer():
         step = self.step_per_epoch * self.epoch
         eta = 1.0 - (1.0 - self.eta_min) * self.R**step
         loss = Lr + self.wkl * eta * Lkl
-        return loss, Ls, Lp, Lr, Lkl
+        return loss, Ls, Lp, Lr, Lkl, self.wkl * eta * Lkl
 
 
 def ls(x, y, pi, mu_x, mu_y, sigma_x, sigma_y, rho_xy, zero_out):
