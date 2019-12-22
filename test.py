@@ -17,7 +17,7 @@ checkpoint_dir = Path.home() / 'MLLogs/SketchRNN/pytorch/apple/testcheckpoints/'
 model = SketchRNN(enc_hidden_size=256, dec_hidden_size=512,
                   Nz=128, M=20, dropout=0.1)
 trainer = Trainer(model, dataloader, tb_writer,
-                  checkpoint_dir, learning_rate=0.001)
+                  checkpoint_dir, learning_rate=0.0001)
 
 trainer.train(epoch=300000)
 
