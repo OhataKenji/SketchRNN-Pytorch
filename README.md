@@ -21,6 +21,8 @@ python test.py
 
 Losses and predictions will be shown in TensorBoard.
 
+![Apple](doc/apple.png "Apple")
+
 ## Details
 
 - model.py : Model Definition
